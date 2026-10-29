@@ -1,0 +1,23 @@
+name: Mr Fold feeds
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Feeds bouwen
+        run: python3 build_feeds.py feed/4ec8fa34d69ca79b22c6
+      - name: Laatste run vastleggen
+        run: date -u +"%Y-%m-%dT%H:%M:%SZ" > feed/4ec8fa34d69ca79b22c6/laatste-run.txt
+      - name: Committen
+        run: |
+          git config user.name "feed-bot"
+          git config user.email "feed-bot@users.noreply.github.com"
+          git add -A feed
+          git commit -m "Feeds bijgewerkt" || echo "geen wijzigingen"
+          git push
