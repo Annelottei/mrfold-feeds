@@ -5,6 +5,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+  pages: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -21,3 +22,7 @@ jobs:
           git add -A feed
           git commit -m "Feeds bijgewerkt" || echo "geen wijzigingen"
           git push
+      - name: Pages opnieuw publiceren
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method POST /repos/${{ github.repository }}/pages/builds
