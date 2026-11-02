@@ -12,10 +12,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Feeds bouwen
+        id: build
         run: python3 build_feeds.py feed/4ec8fa34d69ca79b22c6
       - name: Laatste run vastleggen
+        if: steps.build.outputs.ok == 'true'
         run: date -u +"%Y-%m-%dT%H:%M:%SZ" > feed/4ec8fa34d69ca79b22c6/laatste-run.txt
       - name: Committen
+        if: steps.build.outputs.ok == 'true'
         run: |
           git config user.name "feed-bot"
           git config user.email "feed-bot@users.noreply.github.com"
@@ -23,6 +26,7 @@ jobs:
           git commit -m "Feeds bijgewerkt" || echo "geen wijzigingen"
           git push
       - name: Pages opnieuw publiceren
+        if: steps.build.outputs.ok == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh api --method POST /repos/${{ github.repository }}/pages/builds

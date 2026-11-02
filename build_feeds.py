@@ -6,7 +6,7 @@ Draaien: python3 build_feeds.py <uitvoermap>
 id = Shopify-variant-ID, zodat de pixel de aankopen aan dezelfde items koppelt.
 Bij een fout of een verdacht klein resultaat stopt het script zonder bestanden te overschrijven.
 """
-import csv, html, json, re, sys, time, urllib.request
+import csv, html, json, os, re, sys, time, urllib.error, urllib.request
 from pathlib import Path
 
 BASE = "https://mr-fold.com"
@@ -61,12 +61,25 @@ OPT_FALLBACK = {
 ROOF = {"fr": "toit", "de": "Dach"}
 
 
+WAITS = [10, 30, 60, 120]  # seconden wachten voor poging 2 t/m 5
+
+
 def get(url):
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (feed-builder)"})
-    with urllib.request.urlopen(req, timeout=60) as r:
-        data = json.load(r)
-    time.sleep(0.5)
-    return data
+    for attempt in range(len(WAITS) + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                data = json.load(r)
+            time.sleep(0.5)
+            return data
+        except urllib.error.HTTPError as e:
+            if e.code not in (429, 500, 502, 503, 504) or attempt == len(WAITS):
+                raise
+            wait = WAITS[attempt]
+            if e.headers.get("Retry-After", "").isdigit():
+                wait = max(wait, min(int(e.headers["Retry-After"]), 180))
+            print(f"HTTP {e.code} op {url}, nieuwe poging over {wait}s", file=sys.stderr)
+            time.sleep(wait)
 
 
 def products(market):
@@ -178,5 +191,19 @@ def main(outdir):
         print(r)
 
 
+def set_output(ok):
+    path = os.environ.get("GITHUB_OUTPUT")
+    if path:
+        with open(path, "a") as f:
+            f.write(f"ok={'true' if ok else 'false'}\n")
+
+
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else ".")
+    try:
+        main(sys.argv[1] if len(sys.argv) > 1 else ".")
+    except urllib.error.HTTPError as e:
+        # Winkel blijft na alle pogingen weigeren: oude feed blijft live, run niet laten falen
+        print(f"WAARSCHUWING: ophalen mislukt na meerdere pogingen ({e}); bestaande feed blijft staan", file=sys.stderr)
+        set_output(False)
+    else:
+        set_output(True)
